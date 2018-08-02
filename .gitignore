@@ -3,6 +3,7 @@
 test.db
 test.txt
 sina.html
+test.py
 
 # virtualenv
 .venv
