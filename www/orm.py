@@ -11,7 +11,7 @@ async def create_pool(loop, **kw):
     global __pool
     __pool = await aiomysql.create_pool(
         host=kw.get('host', 'localhost'),
-        port=kw.get('port', '3306'),
+        port=kw.get('port', 3306),
         user=kw['user'],
         password=kw['password'],
         db=kw['db'],
@@ -81,7 +81,7 @@ class BooleanField(Field):
 
 class IntegerField(Field):
     def __init__(self, name=None, primary_key=False, default=0):
-        super()__init__(name, 'bigint', primary_key, default)
+        super().__init__(name, 'bigint', primary_key, default)
 
 
 class FloatField(Field):
@@ -101,20 +101,21 @@ class ModelMetaclass(type):
             return type.__new__(cls, name, bases, attrs)
         table_name = attrs.get('__table__', name)
         logging.info('found model %s: (table %s)' % (name, table_name))
-        mappings = {}
+        mappings = dict()
         fields = []
         primary_key = None
         for k, v in attrs.items():
             if isinstance(v, Field):
+                logging.info('  found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
                 if v.primary_key:
                     if primary_key is not None:
-                        raise RuntimeError('Duplicate primary key for field: %s' % k)
+                        raise StandardError('Duplicate primary key for field: %s' % k)
                     primary_key = k
                 else:
                     fields.append(k)
         if not primary_key:
-            raise RuntimeError('Primary key not found')
+            raise StandardError('Primary key not found')
         for k in mappings.keys():
             attrs.pop(k)
         escaped_fields = list(map(lambda f: '`%s`' % f, fields))
@@ -130,7 +131,7 @@ class ModelMetaclass(type):
         return type.__new__(cls, name, bases, attrs)
 
 
-class Model(dict, ModelMetaclass):
+class Model(dict, metaclass=ModelMetaclass):
     """Base model class"""
     def __init__(self, **kw):
         super().__init__(**kw)
