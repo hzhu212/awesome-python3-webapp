@@ -1,3 +1,4 @@
+import logging; logging.basicConfig(level=logging.INFO)
 from aiohttp import web
 
 routes = web.RouteTableDef()
