@@ -4,7 +4,7 @@ import aiomysql
 
 
 def log(sql, args=()):
-    logging.info('SQL: %s' % sql)
+    logging.info('SQL: ' + sql.replace('?', '%r') % tuple(args))
 
 
 async def create_pool(loop, **kw):
@@ -181,7 +181,7 @@ class Model(dict, metaclass=ModelMetaclass):
             else:
                 raise ValueError('Invalid limit value: %s' % limit)
         res = await select(' '.join(sql), args)
-        return (cls(**obj) for obj in res)
+        return [cls(**obj) for obj in res]
 
     @classmethod
     async def find_number(cls, select_field, where=None, args=None):
