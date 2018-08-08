@@ -1,6 +1,11 @@
 from coroweb import get, post
+from models import User, Blog, Comment
 
 
 @get('/')
-def index(request):
-    return '<h1>Awesome</h1>'
+async def index(request):
+    users = await User.find_all()
+    return {
+        '__template__': 'test.html',
+        'users': users
+    }
