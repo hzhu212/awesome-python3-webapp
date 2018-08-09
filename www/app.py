@@ -7,6 +7,7 @@ import time
 
 from aiohttp import web
 from jinja2 import Environment, FileSystemLoader
+import markdown2
 
 from coroweb import add_routes, add_static
 from handlers import cookie2user, COOKIE_NAME
@@ -123,6 +124,15 @@ def datetime_filter(t):
     return '%4s-%02s-%02s' % (dt.year, dt.month, dt.day)
 
 
+def markdown_filter(mtext):
+    return markdown2.markdown(mtext)
+
+
+def text2html_filter(text):
+    lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), filter(lambda s: s.strip() != '', text.split('\n')))
+    return ''.join(lines)
+
+
 def init_app():
     loop = asyncio.get_event_loop()
     db_task = orm.create_pool(loop=loop, user='www-data', password='www-data', db='awesome')
@@ -130,7 +140,9 @@ def init_app():
     app = web.Application(loop=loop, middlewares=[
         logger_factory, auth_factory, response_factory
     ])
-    init_jinja2(app, filters=dict(datetime=datetime_filter))
+    init_jinja2(app, filters=dict(
+        datetime=datetime_filter, markdown=markdown_filter, text2html=text2html_filter
+    ))
     add_routes(app, 'handlers')
     add_static(app)
     return app
