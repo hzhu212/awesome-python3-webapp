@@ -3,7 +3,9 @@ import logging
 import aiomysql
 
 
-def log(sql, args=()):
+def log(sql, args=None):
+    if not args:
+        args = ()
     logging.info('SQL: ' + sql.replace('?', '%r') % tuple(args))
 
 
@@ -40,16 +42,22 @@ async def select(sql, args, size=None):
         return res
 
 
-async def execute(sql, args):
+async def execute(sql, args, autocommit=True):
     log(sql, args)
     global __pool
     async with __pool.acquire() as conn:
+        if not autocommit:
+            await conn.begin()
         try:
             cur = await conn.cursor()
             await cur.execute(sql.replace('?', '%s'), args)
             affected = cur.rowcount
             await cur.close()
-        except:
+            if not autocommit:
+                await conn.commit()
+        except BaseException as e:
+            if not autocommit:
+                await conn.rollback()
             raise
         return affected
 
@@ -189,7 +197,7 @@ class Model(dict, metaclass=ModelMetaclass):
         sql = ['select %s as _num_ from `%s`' % (select_field, cls.__table__)]
         if where:
             sql.extend(['where', where])
-        res = await execute(' '.join(sql), args, 1)
+        res = await select(' '.join(sql), args, 1)
         if len(res) == 0:
             return None
         return res[0]['_num_']
