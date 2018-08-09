@@ -53,8 +53,8 @@ async def auth_factory(app, handler):
             if user:
                 logging.info('set current user: %s' % user.email)
                 request.__user__ = user
-        if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
-            return web.HTTPFound('/signin')
+        # if request.path.startswith('/manage/') and (request.__user__ is None or not request.__user__.admin):
+        #     return web.HTTPFound('/signin')
         return (await handler(request))
     return auth
 
@@ -93,6 +93,8 @@ async def response_factory(app, handler):
                 s = json.dumps(r, ensure_ascii=False, default=lambda o: o.__dict__)
                 return web.Response(body=s.encode('utf8'), content_type='application/json')
             else:
+                if 'user' not in r:
+                    r['user'] = request.__user__
                 s = app['__templating__'].get_template(template).render(**r)
                 resp = web.Response(body=s.encode('utf8'))
                 resp.content_type = 'text/html;charset=utf-8'

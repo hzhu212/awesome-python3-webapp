@@ -8,7 +8,7 @@ from urllib import parse
 
 from aiohttp import web
 
-from apis import APIError
+from apis import APIError, APIPermissionError
 
 
 def get(path):
@@ -33,6 +33,41 @@ def post(path):
         wrapper.__route__ = path
         return wrapper
     return decorator
+
+
+def require_signin(func):
+    flag = has_request_arg(func)
+    if not flag:
+        insert_request_arg(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kw):
+        request = kw['request']
+        try:
+            assert request.__user__ is not None
+        except:
+            return web.HTTPFound('/signin')
+        if not flag:
+            kw.pop('request')
+        return func(*args, **kw)
+    return wrapper
+
+
+def require_admin(func):
+    # assert has_request_arg(func), 'Handler "%s" decorated by "require_admin" must has an argument "request"' % func.__name__
+    flag = has_request_arg(func)
+    if not flag:
+        insert_request_arg(func)
+    @functools.wraps(func)
+    def wrapper(*args, **kw):
+        request = kw['request']
+        try:
+            assert request.__user__.admin
+        except:
+            raise APIPermissionError()
+        if not flag:
+            kw.pop('request')
+        return func(*args, **kw)
+    return wrapper
 
 
 def get_required_kw_args(fn):
@@ -78,8 +113,23 @@ def has_request_arg(fn):
             found = True
             continue
         if found and (param.kind not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD)):
-            raise ValueError('request parameter must be the last named parameter in function: %s%s' % (fn.__name__, str(sig)))
+            raise ValueError('request parameter must be the last positional parameter in function: %s%s' % (fn.__name__, str(sig)))
     return found
+
+
+def insert_request_arg(fn):
+    p_request = inspect.Parameter(name='request', kind=inspect.Parameter.POSITIONAL_OR_KEYWORD)
+    sig = inspect.signature(fn)
+    index = 0
+    for param in sig.parameters.values():
+        if param.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD:
+            index += 1
+        else:
+            break
+    params = list(sig.parameters.values())
+    params.insert(index, p_request)
+    new_sig = sig.replace(parameters=params)
+    fn.__signature__ = new_sig
 
 
 class RequestHandler(object):
@@ -143,6 +193,8 @@ class RequestHandler(object):
         try:
             r = await self._func(**kw)
             return r
+        except APIPermissionError:
+            return web.HTTPFound('/permission_denied')
         except APIError as e:
             return dict(error=e.error, data=e.data, message=e.message)
 

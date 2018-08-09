@@ -7,15 +7,26 @@ import time
 
 from aiohttp import web
 
-from apis import APIError, APIValueError, APIPermissionError
+from apis import APIError, APIValueError, APIPermissionError, Page
 from config import configs
-from coroweb import get, post
+from coroweb import get, post, require_admin, require_signin
 from models import User, Blog, Comment, next_id
 
 
 COOKIE_NAME = 'awesession'
 COOKIE_MAX_AGE = 86400
 _COOKIE_KEY = configs.session.secret
+
+
+def get_page_index(page_str):
+    p = 1
+    try:
+        p = int(page_str)
+    except ValueError as e:
+        pass
+    if p < 1:
+        p = 1
+    return p
 
 
 def user2cookie(user, max_age):
@@ -51,30 +62,6 @@ async def cookie2user(cookie_str):
         return None
 
 
-def require_signin(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kw):
-        try:
-            request = args[-1]
-            assert request.__user__ is not None
-        except:
-            return web.HTTPFound('/signin')
-        return func(*args, **kw)
-    return wrapper
-
-
-def require_admin(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kw):
-        try:
-            request = args[-1]
-            assert request.__user__.admin
-        except:
-            raise APIPermissionError()
-        return func(*args, **kw)
-    return wrapper
-
-
 @get('/')
 async def index(request):
     summary = 'Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'
@@ -86,7 +73,6 @@ async def index(request):
     return {
         '__template__': 'blogs.html',
         'blogs': blogs,
-        'user': request.__user__,
     }
 
 
@@ -94,12 +80,10 @@ async def index(request):
 async def get_blog(request, *, id_):
     blog = await Blog.find(id_)
     comments = await Comment.find_all('blog_id=?', (id_,), order_by='created_at desc')
-    current_user = request.__user__
     return {
         '__template__': 'blog.html',
         'blog': blog,
         'comments': comments,
-        'user': current_user,
     }
 
 
@@ -122,6 +106,20 @@ def signout(request):
     return r
 
 
+@get('/permission_denied')
+def permission_denied():
+    return {'__template__': 'permission_denied.html'}
+
+
+@require_admin
+@get('/manage/blogs')
+def manage_blogs(*, page='1'):
+    return {
+        '__template__': 'manage_blogs.html',
+        'page_index': get_page_index(page),
+    }
+
+
 @require_admin
 @get('/manage/blogs/create')
 def manage_create_blog():
@@ -133,7 +131,7 @@ def manage_create_blog():
 
 
 @post('/api/authenticate')
-async def authenticate(*, email, password):
+async def api_authenticate(*, email, password):
     if not email:
         raise APIValueError('email', 'Invalid email.')
     if not password:
@@ -182,6 +180,17 @@ async def api_register_user(*, email, name, password):
     user.password = '******'
     r.body = json.dumps(user, ensure_ascii=False).encode('utf8')
     return r
+
+
+@get('/api/blogs')
+async def api_get_blogs(*, page='1'):
+    page_index = get_page_index(page)
+    nblogs = await Blog.find_number('count(id)')
+    p = Page(nblogs, page_index)
+    if nblogs == 0:
+        return dict(page=p, blogs=())
+    blogs = await Blog.find_all(order_by='created_at desc', limit=(p.offset, p.limit))
+    return dict(page=p, blogs=blogs)
 
 
 @get('/api/blogs/{id_}')
