@@ -20,7 +20,7 @@ _COOKIE_KEY = configs.session.secret
 def user2cookie(user, max_age):
     """generate cookie string by user"""
     # build cookie string by 'id-expires-sha1(id-password-expires-secret)'
-    expires = str(time.time() + max_age)
+    expires = str(int(time.time() + max_age))
     s = '%s-%s-%s-%s' % (user.id, user.password, expires, _COOKIE_KEY)
     lst = [user.id, expires, hashlib.sha1(s.encode('utf8')).hexdigest()]
     return '-'.join(lst)
@@ -30,17 +30,17 @@ async def cookie2user(cookie_str):
     if not cookie_str:
         return None
     try:
-        lst = cookie_str.aplit('-')
+        lst = cookie_str.split('-')
         if len(lst) != 3:
             return None
         uid, expires, sha1 = lst
-        if expires < time.time():
+        if int(expires) < time.time():
             return None
         user = await User.find(uid)
         if user is None:
             return None
         s = '%s-%s-%s-%s' % (user.id, user.password, expires, _COOKIE_KEY)
-        if sha1 != hashlib.sha1(s.encode(utf8)).hexdigest():
+        if sha1 != hashlib.sha1(s.encode('utf8')).hexdigest():
             logging.info('Invalid sha1')
             return None
         user.password = '******'
@@ -60,7 +60,8 @@ async def index(request):
     ]
     return {
         '__template__': 'blogs.html',
-        'blogs': blogs
+        'blogs': blogs,
+        'user': request.__user__,
     }
 
 
