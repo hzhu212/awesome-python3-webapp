@@ -27,7 +27,7 @@ async def create_pool(loop, **kw):
 async def select(sql, args, size=None):
     log(sql, args)
     global __pool
-    with (await __pool) as conn:
+    async with __pool.acquire() as conn:
         cur = await conn.cursor(aiomysql.DictCursor)
         await cur.execute(sql.replace('?', '%s'), args or ())
         if size:
@@ -43,7 +43,7 @@ async def select(sql, args, size=None):
 async def execute(sql, args):
     log(sql, args)
     global __pool
-    with (await __pool) as conn:
+    async with __pool.acquire() as conn:
         try:
             cur = await conn.cursor()
             await cur.execute(sql.replace('?', '%s'), args)
@@ -210,6 +210,7 @@ class Model(dict, metaclass=ModelMetaclass):
         nrow = await execute(self.__insert__, args)
         if nrow != 1:
             logging.warn('failed to insert record: affected rows: %s' % nrow)
+        return nrow
 
     async def update(self):
         """update record by primary key"""
@@ -218,6 +219,7 @@ class Model(dict, metaclass=ModelMetaclass):
         nrow = await execute(self.__update__, args)
         if nrow != 1:
             logging.warn('failed to update record: affected rows: %s' % nrow)
+        return nrow
 
     async def remove(self):
         """delete record by primary key"""
@@ -225,3 +227,4 @@ class Model(dict, metaclass=ModelMetaclass):
         nrow = await execute(self.__delete__, args)
         if nrow != 1:
             logging.warn('failed to delete record: affected rows: %s' % nrow)
+        return nrow
