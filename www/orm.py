@@ -135,7 +135,7 @@ class ModelMetaclass(type):
         # 构造默认的 SELECT，INSERT，UPDATE 和 DELETE 语句
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primary_key, ', '.join(escaped_fields), table_name)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (table_name, ', '.join(escaped_fields), primary_key, create_args_string(len(fields)+1))
-        attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (table_name, ', '.join(map(lambda f: '`%s=?`' % (mappings.get(f).name or f), fields)), primary_key)
+        attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (table_name, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primary_key)
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (table_name, primary_key)
         return type.__new__(cls, name, bases, attrs)
 
